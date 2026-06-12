@@ -336,17 +336,16 @@ with tabs[5]:
         with cc2:
             co_window_span = st.number_input("Adjacency Context Token Span Window Range (Span Size)", min_value=2, max_value=10, value=4)
             
-        if st.button("🔮 Calculate Adjacency Co-occurrences & Compile Graph Weights Matrix", type="primary", use_container_width=True):
+        if st.button("🔮 Calculate Adjacency Co-occurrences & Compile Graph Weights Matrix", type="primary"):
             with st.spinner("Extracting structural graph edges, logDice indices, and semantic similarity mappings..."):
                 
-                # 1. Isolate the Top N Unigrams using clean word lists definitions filter loops
+                # 1. Compute corpus-wide baseline unigram counts to extract absolute frequency properties
                 flat_words = [w for s in st.session_state.clean_sentences for w in s if w not in st.session_state.stop_words]
-                top_unigrams_counts = Counter(flat_words).most_common(top_unigram_limit)
-                target_nodes_set = set([item[0] for item in top_unigrams_counts])
-                freq_dict_nodes = dict(top_unigrams_counts)
+                global_counts_dict = Counter(flat_words)
                 
-                # Total baseline dictionary frequency units size for calculation checks
-                total_tokens_volume = len(flat_words)
+                # Isolate the targeted top N unigram boundaries
+                top_unigrams_list = global_counts_dict.most_common(top_unigram_limit)
+                target_nodes_set = set([item[0] for item in top_unigrams_list])
                 
                 # 2. Populate spatial transactional distance co-occurrences using span constraints
                 cooccur_counts_matrix = defaultdict(int)
@@ -356,36 +355,41 @@ with tabs[5]:
                     s_len = len(filtered_s)
                     for i in range(s_len):
                         w1 = filtered_s[i]
-                        # Look forward within the designated calculation span limit boundaries window parameters
                         for j in range(i + 1, min(s_len, i + co_window_span + 1)):
                             w2 = filtered_s[j]
                             if w1 != w2:
-                                # Ensure deterministic structural sort order keys matching original desktop layout assignments
                                 sorted_pair = tuple(sorted([w1, w2]))
                                 cooccur_counts_matrix[sorted_pair] += 1
                                 
-                # 3. Apply standard formulas to calculate weights, logDice, and semantic similarities
+                    # Account for self-co-occurrence self-loops on matching identical tokens in same sentence context
+                    for w in set(filtered_s):
+                        if filtered_s.count(w) > 1:
+                            cooccur_counts_matrix[(w, w)] += (filtered_s.count(w) - 1)
+                                
+                # 3. Apply structural calculations for network nodes mapping dataframes
                 network_rows_records = []
                 for (node_a, node_b), co_freq in cooccur_counts_matrix.items():
                     if co_freq > 0:
-                        freq_a = freq_dict_nodes.get(node_a, 1)
-                        freq_b = freq_dict_nodes.get(node_b, 1)
+                        freq_a = global_counts_dict.get(node_a, 1)
+                        freq_b = global_counts_dict.get(node_b, 1)
                         
-                        # Apply desktop logDice index formula: 14 + log2( (2 * Co) / (FreqA + FreqB) )
+                        # Apply original logDice association index formula
                         dice_inner_val = (2 * co_freq) / (freq_a + freq_b)
                         log_dice_value = 14 + math.log2(dice_inner_val) if dice_inner_val > 0 else 0.0
                         
-                        # Extract similarity via Word2Vec spatial vector model weights matrix targets
+                        # Extract cosine vector distances from structural Word2Vec model definitions
                         cosine_sim_value = 0.0
-                        if st.session_state.wv_model and node_a in st.session_state.wv_model.wv and node_b in st.session_state.wv_model.wv:
+                        if node_a == node_b:
+                            cosine_sim_value = 1.0
+                        elif st.session_state.wv_model and node_a in st.session_state.wv_model.wv and node_b in st.session_state.wv_model.wv:
                             cosine_sim_value = float(st.session_state.wv_model.wv.similarity(node_a, node_b))
                             
                         network_rows_records.append({
                             "Source": node_a,
                             "Target": node_b,
-                            "Weight": co_freq,
-                            "LogDice": round(log_dice_value, 4),
-                            "Similarity": round(cosine_sim_value, 4)
+                            "frequency": co_freq,
+                            "association": round(log_dice_value, 4),
+                            "similarity": round(cosine_sim_value, 4)
                         })
                         
                 if network_rows_records:
@@ -394,37 +398,41 @@ with tabs[5]:
                     st.success(f"Assembled relational network containing {len(compiled_edges_dataframe)} unique graph edge pathways.")
                     st.dataframe(compiled_edges_dataframe, use_container_width=True)
                     
-                    # 4. Generate the exact GML file format matching your desktop text stream output requirements
+                    # 4. Generate the explicit GML file string matching your node/edge key requirements
                     gml_lines_list = ["graph [", "  directed 0"]
                     
-                    # Track assigned string node targets mapping indexes
-                    all_unique_nodes = sorted(list(target_nodes_set))
+                    # Ensure node assignment sort order aligns with top counts tracking
+                    all_unique_nodes = [item[0] for item in top_unigrams_list]
                     node_to_id_index_map = {node_str: idx for idx, node_str in enumerate(all_unique_nodes)}
                     
-                    # Inject node declarations into GML text block
+                    # Inject node attributes with requested absolute frequency labels
                     for n_str in all_unique_nodes:
+                        abs_freq = global_counts_dict.get(n_str, 0)
                         gml_lines_list.append("  node [")
                         gml_lines_list.append(f'    id {node_to_id_index_map[n_str]}')
                         gml_lines_list.append(f'    label "{n_str}"')
+                        gml_lines_list.append(f'    frequency {abs_freq}')
                         gml_lines_list.append("  ]")
                         
-                    # Inject edge connection records containing metadata fields directly into GML blocks
+                    # Inject relational connection edge loops
                     for edge_record in network_rows_records:
-                        id_source = node_to_id_index_map[edge_record["Source"]]
-                        id_target = node_to_id_index_map[edge_record["Target"]]
-                        
-                        gml_lines_list.append("  edge [")
-                        gml_lines_list.append(f"    source {id_source}")
-                        gml_lines_list.append(f"    target {id_target}")
-                        gml_lines_list.append(f"    weight {edge_record['Weight']}")
-                        gml_lines_list.append(f"    logDice {edge_record['LogDice']}")
-                        gml_lines_list.append(f"    similarity {edge_record['Similarity']}")
-                        gml_lines_list.append("  ]")
+                        # Safety check to protect dictionary boundary definitions matching top selection arrays
+                        if edge_record["Source"] in node_to_id_index_map and edge_record["Target"] in node_to_id_index_map:
+                            id_source = node_to_id_index_map[edge_record["Source"]]
+                            id_target = node_to_id_index_map[edge_record["Target"]]
+                            
+                            gml_lines_list.append("  edge [")
+                            gml_lines_list.append(f"    source {id_source}")
+                            gml_lines_list.append(f"    target {id_target}")
+                            gml_lines_list.append(f"    frequency {edge_record['frequency']}")
+                            gml_lines_list.append(f"    association {edge_record['association']}")
+                            gml_lines_list.append(f"    similarity {edge_record['similarity']}")
+                            gml_lines_list.append("  ]")
                         
                     gml_lines_list.append("]")
                     final_gml_string_output = "\n".join(gml_lines_list)
                     
-                    # 5. Provide download access options for both data stream tracking formats
+                    # 5. Provide download access handlers
                     d_col1, d_col2 = st.columns(2)
                     with d_col1:
                         st.download_button(
@@ -432,7 +440,7 @@ with tabs[5]:
                             data=final_gml_string_output,
                             file_name="keytext_graph_network.gml",
                             mime="text/plain",
-                            use_container_width=True
+                            key="gml_download_btn"
                         )
                     with d_col2:
                         st.download_button(
@@ -440,7 +448,7 @@ with tabs[5]:
                             data=compiled_edges_dataframe.to_csv(index=False).encode('utf-8'),
                             file_name="keytext_network_edges.csv",
                             mime="text/csv",
-                            use_container_width=True
+                            key="csv_download_btn"
                         )
                 else:
                     st.warning("No co-occurrence connections found matching your settings thresholds.")
