@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from gensim.models import Word2Vec
 import streamlit as st
+import io  # Ensure this import is added at the top of your app.py file
 
 # ==========================================
 # 1. Page Config & Session State Init
@@ -84,30 +85,27 @@ with st.sidebar:
             else:
                 is_csv = file_types[0] == 'csv'
                 
+                
+
+                # ... inside your sidebar file loading loop ...
+
                 for idx, f in enumerate(uploaded_files):
                     fileName = os.path.splitext(f.name)[0]
                     if is_csv:
-                        dfcsv = pd.read_csv(f, encoding='utf-8', errors='backslashreplace')
+                        # Wrap the stream in a TextIOWrapper to handle the backslash replacement safely
+                        text_stream = io.TextIOWrapper(f, encoding='utf-8', errors='backslashreplace')
+                        dfcsv = pd.read_csv(text_stream)
+                        
                         if len(uploaded_files) > 1:
                             dfcsv.insert(loc=1, column='Data', value=[fileName]*len(dfcsv))
                         list_of_files.append(dfcsv)
                     else:
-                        raw_text = f.read().decode('utf-8', errors='backslashreplace')
+                        # For text files, read and decode the raw bytes manually
+                        raw_bytes = f.read()
+                        raw_text = raw_bytes.decode('utf-8', errors='backslashreplace')
                         paragraphs = raw_text.split(txt_delimiter)
-                        pars = [" ".join(p.split()) for p in paragraphs if p.strip()] if txt_delimiter == "\n\n" else [p for p in paragraphs if p]
                         
-                        if len(uploaded_files) > 1:
-                            dftext = pd.DataFrame({'Text': pars, 'Data': [fileName]*len(pars)})
-                        else:
-                            dftext = pd.DataFrame({'Text': pars})
-                        
-                        # Generate simulated trailing backwards dates
-                        n_rows = len(dftext)
-                        n_dates = 100
-                        group_size = n_rows // n_dates
-                        remainder = n_rows % n_dates
-                        date_assignments = []
-                        date_idx = 0
+                        # ... rest of your original paragraph processing logic ...
                         
                         for i in range(n_dates):
                             current_group_size = group_size + 1 if i < remainder else group_size
