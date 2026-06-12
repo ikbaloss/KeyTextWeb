@@ -145,11 +145,12 @@ with col3:
 with col4:
     text_col_choice = st.selectbox("Linguistic Text Column Target", options=columns_list, index=columns_list.index("Text") if "Text" in columns_list else 0)
 
-if st.button("⚡ Select Text & Compile Spatial Embeddings", type="primary", use_container_width=True):
+if st.button("⚡ Select Text & Compile Spatial Embeddings", type="primary", icon="⚡"):
     if text_col_choice == "Select":
         st.error("Please identify a column header pointing to target language string text matrices.")
     else:
-        with St.spinner("Extracting tokens and creating Word2Vec embeddings space..."):
+        # Fixed lowercase st.spinner typo below:
+        with st.spinner("Extracting tokens and creating Word2Vec embeddings space..."):
             df = st.session_state.main_data.copy()
             df['SelectedColumn'] = df[text_col_choice].astype(str).str.lower()
             
@@ -161,11 +162,9 @@ if st.button("⚡ Select Text & Compile Spatial Embeddings", type="primary", use
             comments = [s for s in df['SelectedColumn'].to_list() if isinstance(s, str) and s.strip() != '']
             cleaned_comments = [keep_alphanumeric(s) for s in comments]
             
-            # Save token array shapes into session state matrices
             st.session_state.clean_sentences = [s.split() for s in cleaned_comments]
             st.session_state.raw_tokens_list = re.findall(r'\b\w+(?:[-_]\w+)*\b', " ".join(comments))
             
-            # Stopwords Config System
             stopword_file = "stopwords-id.txt" if lang_choice == "Indonesia" else "stopwords-en.txt"
             if os.path.exists(stopword_file):
                 with open(stopword_file, "r") as tf:
@@ -173,7 +172,6 @@ if st.button("⚡ Select Text & Compile Spatial Embeddings", type="primary", use
             else:
                 st.session_state.stop_words = []
             
-            # Word2Vec parameter configuration maps matched precisely to 0.22 desktop spec
             st.session_state.wv_model = Word2Vec(sentences=st.session_state.clean_sentences, min_count=20, vector_size=200, window=3, sg=1)
             st.session_state.main_data = df
             st.session_state.processing_done = True
