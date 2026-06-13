@@ -309,10 +309,14 @@ with tabs[2]:
 
         if cleaned_kwic_input:
             if "*" in cleaned_kwic_input:
+                # Standard conversion strategy for wildcards
                 regex_parts = [re.escape(part) for part in cleaned_kwic_input.split("*")]
                 kwic_pattern_string = r"\b" + r"\w*".join(regex_parts) + r"\b"
             else:
-                kwic_pattern_string = r"\b" + re.escape(cleaned_kwic_input) + r"\b"
+                # CRITICAL FIX: Split multi-word inputs by whitespace and rejoin them using \s+
+                # This ensures phrase searches like "presiden prabowo" safely evaluate your text strings
+                phrase_parts = [re.escape(word) for word in cleaned_kwic_input.split()]
+                kwic_pattern_string = r"\b" + r"\s+".join(phrase_parts) + r"\b"
                 
             kwic_compiled_regex = re.compile(kwic_pattern_string, re.IGNORECASE)
 
