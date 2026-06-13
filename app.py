@@ -219,7 +219,7 @@ with tabs[1]:
                 selection_event = st.dataframe(
                     sim_df, 
                     on_select="rerun", 
-                    selection_mode="multi_row", 
+                    selection_mode="multi-row", 
                     width="stretch"
                 )
                 
