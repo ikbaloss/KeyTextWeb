@@ -271,7 +271,13 @@ with tabs[1]:
                     if st.button(f"🔄 Replace Selected Terms with '{t_clean}'", type="primary", key="w2v_replace_btn"):
                         df = st.session_state.main_data.copy()
                         pattern = r'\b(?:{})\b'.format('|'.join([re.escape(w) for w in selected_words]))
+                        
+                        # Update the lower tracking helper matrix
                         df['SelectedColumn'] = df['SelectedColumn'].astype(str).str.replace(pattern, t_clean, regex=True)
+                        
+                        # CRITICAL FIX: Overwrite the actual primary text column view layer
+                        if text_col_choice in df.columns:
+                            df[text_col_choice] = df['SelectedColumn']
                         
                         with st.spinner("Modifying underlying text matrices and re-compiling embeddings..."):
                             st.session_state.main_data = df
@@ -310,12 +316,19 @@ with tabs[2]:
                 
             kwic_compiled_regex = re.compile(kwic_pattern_string, re.IGNORECASE)
 
+            # Execution logic for context substitution across raw dataset text frames
             if replacement_word_input.strip():
                 rep_word_clean = replacement_word_input.strip().lower()
                 
                 if st.button(f"🔄 Replace all matching occurrences of '{cleaned_kwic_input}' with '{rep_word_clean}'", type="primary"):
                     df = st.session_state.main_data.copy()
+                    
+                    # 1. Update the processed lowercase helper track column
                     df['SelectedColumn'] = df['SelectedColumn'].astype(str).apply(lambda x: kwic_compiled_regex.sub(rep_word_clean, x))
+                    
+                    # 2. CRITICAL FIX: Overwrite the actual raw input column selected by the user in the dropdown!
+                    if text_col_choice in df.columns:
+                        df[text_col_choice] = df['SelectedColumn']
                     
                     with st.spinner("Executing structural context replacement and re-indexing corpora..."):
                         st.session_state.main_data = df
