@@ -260,73 +260,83 @@ with tabs[1]:
                 st.error(f"Token vector mapping element '{t_clean}' not present in model vocabulary constraints.")
 
 # TAB 3: KEY WORD IN CONTEXT (KWIC) EXPLORER (WITH INTEGRATED WILDCARD PATTERN MATCHING)
+
 with tabs[2]:
     st.header("📖 Contextual Word Frame Windows")
     if not st.session_state.processing_done:
         st.info("Run core parameter execution above to extract local contexts.")
     else:
-        kwic_input_raw = st.text_input("Context Focus Targeted Node String (supports wildcards, e.g., *nya, ber*, pe*an)", value=st.session_state.kwic_term)
+        kwic_input_raw = st.text_input("Context Focus Targeted Node String (supports phrases and wildcards, e.g., merah putih, ber*, *nya)", value=st.session_state.kwic_term)
         
         cleaned_kwic_input = kwic_input_raw.strip().lower()
         st.session_state.kwic_term = cleaned_kwic_input
 
         kc1, kc2 = st.columns([2, 2])
         with kc1:
-            w_radius = st.number_input("Token Extraction Window Slicing Horizon Radius", min_value=2, max_value=15, value=5)
+            w_radius = st.number_input("Token Extraction Window Slicing Horizon Radius (Words)", min_value=2, max_value=15, value=5)
         with kc2:
             replacement_word_input = st.text_input("Substitution Word / Target Token String (Optional Replacement)", value="")
 
-        # -------------------------------------------------------------
-        # Comprehensive Desktop Wildcard Conversion Engine 
-        # -------------------------------------------------------------
-        has_wildcard = "*" in cleaned_kwic_input
-        
         if cleaned_kwic_input:
-            if has_wildcard:
-                # Escape alphanumeric components while transforming * into valid regex matches (\w*)
+            # Convert wildcard * safely into regex word-character components
+            if "*" in cleaned_kwic_input:
                 regex_parts = [re.escape(part) for part in cleaned_kwic_input.split("*")]
                 kwic_pattern_string = r"\b" + r"\w*".join(regex_parts) + r"\b"
-                kwic_compiled_regex = re.compile(kwic_pattern_string, re.IGNORECASE)
             else:
                 kwic_pattern_string = r"\b" + re.escape(cleaned_kwic_input) + r"\b"
-                kwic_compiled_regex = re.compile(kwic_pattern_string, re.IGNORECASE)
+                
+            kwic_compiled_regex = re.compile(kwic_pattern_string, re.IGNORECASE)
 
-            # Execution logic for context substitution
+            # Execution logic for context substitution across raw dataset text frames
             if replacement_word_input.strip():
                 rep_word_clean = replacement_word_input.strip().lower()
                 
-                if len(rep_word_clean.split()) > 1:
-                    st.error("⚠️ Substitution targets must consist of a singular connected token.")
-                else:
-                    if st.button(f"🔄 Replace all matching occurrences of '{cleaned_kwic_input}' with '{rep_word_clean}'", type="primary"):
-                        df = st.session_state.main_data.copy()
-                        df['SelectedColumn'] = df['SelectedColumn'].astype(str).apply(lambda x: kwic_compiled_regex.sub(rep_word_clean, x))
+                if st.button(f"🔄 Replace all matching occurrences of '{cleaned_kwic_input}' with '{rep_word_clean}'", type="primary"):
+                    df = st.session_state.main_data.copy()
+                    df['SelectedColumn'] = df['SelectedColumn'].astype(str).apply(lambda x: kwic_compiled_regex.sub(rep_word_clean, x))
+                    
+                    with st.spinner("Executing structural context replacement and re-indexing corpora..."):
+                        st.session_state.main_data = df
+                        recompile_pipeline_matrices()
+                        st.session_state.kwic_term = rep_word_clean
                         
-                        with st.spinner("Executing structural context replacement and re-indexing corpora..."):
-                            st.session_state.main_data = df
-                            recompile_pipeline_matrices()
-                            st.session_state.kwic_term = rep_word_clean
-                            
-                        st.success(f"Successfully replaced wildcard context targets with '{rep_word_clean}' across tracking arrays!")
-                        st.rerun()
+                    st.success(f"Successfully replaced context targets with '{rep_word_clean}' across tracking arrays!")
+                    st.rerun()
 
-            # Context Slicer Window Builder Block
+            # String-based Window Builder Loop (Matches KeyText.py logic)
             records = []
-            for words in st.session_state.clean_sentences:
-                for idx, tok in enumerate(words):
-                    # Check the current token against the user's string pattern or regex wildcard structure
-                    if kwic_compiled_regex.match(tok):
-                        records.append({
-                            "Matched Word": tok,
-                            "Left Context Frame Segment": " ".join(words[max(0, idx - w_radius):idx]),
-                            "TARGET NODE INDEX": words[idx],
-                            "Right Context Frame Segment": " ".join(words[idx+1:min(len(words), idx + w_radius + 1)])
-                        })
+            for raw_text in st.session_state.main_data['SelectedColumn'].dropna().astype(str):
+                # Isolate all standard textual tokens for this explicit entry line
+                all_tokens = re.findall(r'\b\w+(?:[-_]\w+)*\b', raw_text.lower())
+                
+                # Check for pattern intersection matches within the raw string block
+                for match in kwic_compiled_regex.finditer(raw_text.lower()):
+                    matched_str = match.group()
+                    
+                    # Split multi-word search phrases to identify their window indices properly
+                    matched_words = re.findall(r'\b\w+(?:[-_]\w+)*\b', matched_str)
+                    if not matched_words:
+                        continue
+                        
+                    # Find exact coordinate positions of target phrase keywords inside current line tokens list
+                    for idx in range(len(all_tokens) - len(matched_words) + 1):
+                        if all_tokens[idx:idx+len(matched_words)] == matched_words:
+                            left_bound = max(0, idx - w_radius)
+                            right_bound = min(len(all_tokens), idx + len(matched_words) + w_radius)
+                            
+                            records.append({
+                                "Matched Term/Phrase": matched_str,
+                                "Left Context Frame Segment": " ".join(all_tokens[left_bound:idx]),
+                                "TARGET NODE INDEX": " ".join(all_tokens[idx:idx+len(matched_words)]),
+                                "Right Context Frame Segment": " ".join(all_tokens[idx+len(matched_words):right_bound])
+                            })
+                            break # Step out of structural lookup bounds for this match instance
+                            
             if records:
-                st.subheader(f"Active Context Windows Frame for pattern: '{cleaned_kwic_input}'")
+                st.subheader(f"Active Context Windows Frame for: '{cleaned_kwic_input}'")
                 st.dataframe(pd.DataFrame(records), width="stretch")
             else:
-                st.warning(f"No active window matching trajectories found for pattern: '{cleaned_kwic_input}'")
+                st.warning(f"No active window matching trajectories found for: '{cleaned_kwic_input}'")
 
 # TAB 4: TREND REVIEWS
 with tabs[3]:
