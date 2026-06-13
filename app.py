@@ -290,7 +290,9 @@ with tabs[1]:
             else:
                 st.error(f"Token vector mapping element '{t_clean}' not present in model vocabulary constraints.")
 
-# TAB 3: KEY WORD IN CONTEXT (KWIC) EXPLORER (WITH PHRASES & WILDCARDS)
+# -----------------------------------------------------------------
+# TAB 3: KEY WORD IN CONTEXT (KWIC) EXPLORER (CLEAN GRAPH HEADERS)
+# -----------------------------------------------------------------
 with tabs[2]:
     st.header("📖 Contextual Word Frame Windows")
     if not st.session_state.processing_done:
@@ -309,12 +311,9 @@ with tabs[2]:
 
         if cleaned_kwic_input:
             if "*" in cleaned_kwic_input:
-                # Standard conversion strategy for wildcards
                 regex_parts = [re.escape(part) for part in cleaned_kwic_input.split("*")]
                 kwic_pattern_string = r"\b" + r"\w*".join(regex_parts) + r"\b"
             else:
-                # CRITICAL FIX: Split multi-word inputs by whitespace and rejoin them using \s+
-                # This ensures phrase searches like "presiden prabowo" safely evaluate your text strings
                 phrase_parts = [re.escape(word) for word in cleaned_kwic_input.split()]
                 kwic_pattern_string = r"\b" + r"\s+".join(phrase_parts) + r"\b"
                 
@@ -326,11 +325,8 @@ with tabs[2]:
                 
                 if st.button(f"🔄 Replace all matching occurrences of '{cleaned_kwic_input}' with '{rep_word_clean}'", type="primary"):
                     df = st.session_state.main_data.copy()
-                    
-                    # 1. Update the processed lowercase helper track column
                     df['SelectedColumn'] = df['SelectedColumn'].astype(str).apply(lambda x: kwic_compiled_regex.sub(rep_word_clean, x))
                     
-                    # 2. CRITICAL FIX: Overwrite the actual raw input column selected by the user in the dropdown!
                     if text_col_choice in df.columns:
                         df[text_col_choice] = df['SelectedColumn']
                     
@@ -342,6 +338,7 @@ with tabs[2]:
                     st.success(f"Successfully replaced context targets with '{rep_word_clean}' across tracking arrays!")
                     st.rerun()
 
+            # String-based Window Builder Loop matching simplified column requirements
             records = []
             for raw_text in st.session_state.main_data['SelectedColumn'].dropna().astype(str):
                 all_tokens = re.findall(r'\b\w+(?:[-_]\w+)*\b', raw_text.lower())
@@ -357,11 +354,13 @@ with tabs[2]:
                             left_bound = max(0, idx - w_radius)
                             right_bound = min(len(all_tokens), idx + len(matched_words) + w_radius)
                             
+                            # Modified structural dictionary mapping:
+                            # 1. Removed duplicate "Matched Term/Phrase" tracking row
+                            # 2. Simplified headings to 'Left', 'Keywords', and 'Right'
                             records.append({
-                                "Matched Term/Phrase": matched_str,
-                                "Left Context Frame Segment": " ".join(all_tokens[left_bound:idx]),
-                                "TARGET NODE INDEX": " ".join(all_tokens[idx:idx+len(matched_words)]),
-                                "Right Context Frame Segment": " ".join(all_tokens[idx+len(matched_words):right_bound])
+                                "Left": " ".join(all_tokens[left_bound:idx]),
+                                "Keywords": " ".join(all_tokens[idx:idx+len(matched_words)]),
+                                "Right": " ".join(all_tokens[idx+len(matched_words):right_bound])
                             })
                             break
                             
@@ -370,7 +369,6 @@ with tabs[2]:
                 st.dataframe(pd.DataFrame(records), width="stretch")
             else:
                 st.warning(f"No active window matching trajectories found for: '{cleaned_kwic_input}'")
-
 # TAB 4: TREND REVIEWS
 with tabs[3]:
     st.header("📈 Frequency Series Trend Evaluations")
